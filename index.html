@@ -37,6 +37,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
 @keyframes slideUp{from{transform:translateY(10px);opacity:0;}to{transform:translateY(0);opacity:1;}}
 @keyframes starTwinkle{0%,100%{opacity:.25;}50%{opacity:.9;}}
 @keyframes ripple{0%{transform:scale(1);opacity:.5;}100%{transform:scale(2.8);opacity:0;}}
+@keyframes speakGlow{0%{opacity:.4;}100%{opacity:1;}}
 @keyframes pipeFlow{0%{opacity:.3;transform:translateY(-4px);}100%{opacity:1;transform:translateY(4px);}}
 @keyframes pipeActive{0%{box-shadow:0 0 0 0 var(--blue-glow);}50%{box-shadow:0 0 0 8px transparent;}100%{box-shadow:0 0 0 0 transparent;}}
 @keyframes gradBg{0%,100%{background-position:0% 50%;}50%{background-position:100% 50%;}}
@@ -169,6 +170,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
 .avatar-canvas-wrap canvas{width:180px;height:200px;border-radius:50% 50% 45% 45%;display:block;}
 .avatar-glow{position:absolute;inset:-12px;border-radius:50%;background:radial-gradient(circle,var(--blue-glow),transparent 70%);pointer-events:none;animation:pulse 2.5s ease-in-out infinite;}
 .speaking-ring{position:absolute;inset:-8px;border-radius:50%;border:2px solid var(--blue);opacity:0;transition:opacity .3s;}
+.avatar-fullscreen{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#0D1228 0%,#050710 100%);}
+.avatar-canvas-fullscreen{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;}
+.avatar-canvas-fullscreen canvas{width:auto;height:100%;max-height:100%;border-radius:0;}
 .speaking-ring.on{opacity:1;animation:ripple 1.8s ease-out infinite;}
 
 /* Text transcript inside avatar panel */
@@ -272,450 +276,8 @@ async function callAI(messages, system='', maxTokens=900) {
 }
 
 // ── REALISTIC CANVAS AVATAR ──────────────────────────
-function RealisticAvatar({ speaking, pipelineStage }) {
-  const canvasRef = useRef(null);
-  const animRef = useRef(null);
-  const stateRef = useRef({
-    t: 0,
-    blinkT: 0,
-    nextBlink: 120,
-    mouthOpen: 0,
-    eyeOpen: 1,
-    headBob: 0,
-    speaking: false,
-    breathPhase: 0,
-  });
-
-  useEffect(() => {
-    stateRef.current.speaking = speaking;
-  }, [speaking]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    canvas.width = 200;
-    canvas.height = 230;
-
-    function drawAvatar(s) {
-      ctx.clearRect(0, 0, 200, 230);
-
-      const cx = 100;
-      const cy = 100 + Math.sin(s.breathPhase) * 1.5;
-      const headBob = Math.sin(s.headBob) * 2;
-
-      // ── Background glow ──
-      const bgGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, 90);
-      bgGrad.addColorStop(0, 'rgba(91,141,239,0.08)');
-      bgGrad.addColorStop(1, 'transparent');
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, 200, 230);
-
-      // ── Neck ──
-      ctx.beginPath();
-      ctx.moveTo(82, cy + 66);
-      ctx.lineTo(88, cy + 90);
-      ctx.lineTo(112, cy + 90);
-      ctx.lineTo(118, cy + 66);
-      ctx.closePath();
-      const neckGrad = ctx.createLinearGradient(85, cy+66, 115, cy+66);
-      neckGrad.addColorStop(0, '#C68642');
-      neckGrad.addColorStop(0.5, '#D4956A');
-      neckGrad.addColorStop(1, '#B5732A');
-      ctx.fillStyle = neckGrad;
-      ctx.fill();
-
-      // ── Shoulders ──
-      ctx.beginPath();
-      ctx.moveTo(30, cy + 130);
-      ctx.bezierCurveTo(30, cy + 95, 70, cy + 88, 88, cy + 88);
-      ctx.lineTo(112, cy + 88);
-      ctx.bezierCurveTo(130, cy + 88, 170, cy + 95, 170, cy + 130);
-      ctx.closePath();
-      const shoulGrad = ctx.createLinearGradient(30, cy+88, 170, cy+130);
-      shoulGrad.addColorStop(0, '#1A237E');
-      shoulGrad.addColorStop(0.5, '#283593');
-      shoulGrad.addColorStop(1, '#1A237E');
-      ctx.fillStyle = shoulGrad;
-      ctx.fill();
-
-      // collar / shirt detail
-      ctx.beginPath();
-      ctx.moveTo(82, cy + 88);
-      ctx.lineTo(88, cy + 105);
-      ctx.lineTo(100, cy + 100);
-      ctx.lineTo(112, cy + 105);
-      ctx.lineTo(118, cy + 88);
-      ctx.closePath();
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fill();
-
-      // ── Head shadow ──
-      ctx.beginPath();
-      ctx.ellipse(cx + 3, cy + headBob + 3, 58, 68, 0, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0,0,0,0.2)';
-      ctx.fill();
-
-      // ── Head base ──
-      ctx.beginPath();
-      ctx.ellipse(cx, cy + headBob, 58, 68, 0, 0, Math.PI * 2);
-      const faceGrad = ctx.createRadialGradient(cx - 15, cy + headBob - 20, 5, cx, cy + headBob, 68);
-      faceGrad.addColorStop(0, '#E8B88A');
-      faceGrad.addColorStop(0.4, '#D4956A');
-      faceGrad.addColorStop(0.8, '#C07840');
-      faceGrad.addColorStop(1, '#A06030');
-      ctx.fillStyle = faceGrad;
-      ctx.fill();
-
-      // ── Jaw definition ──
-      ctx.beginPath();
-      ctx.ellipse(cx, cy + headBob + 30, 44, 32, 0, 0, Math.PI);
-      const jawGrad = ctx.createLinearGradient(cx-44, cy+headBob+30, cx+44, cy+headBob+62);
-      jawGrad.addColorStop(0, '#C07840');
-      jawGrad.addColorStop(1, '#A06030');
-      ctx.fillStyle = jawGrad;
-      ctx.fill();
-
-      // ── Hair ──
-      // Back hair
-      ctx.beginPath();
-      ctx.ellipse(cx, cy + headBob - 20, 62, 55, 0, Math.PI, 0);
-      ctx.fillStyle = '#1A0A00';
-      ctx.fill();
-      // Top hair
-      ctx.beginPath();
-      ctx.ellipse(cx, cy + headBob - 40, 52, 38, 0, Math.PI, 0);
-      const hairGrad = ctx.createLinearGradient(cx-52, cy+headBob-78, cx+52, cy+headBob-40);
-      hairGrad.addColorStop(0, '#2D1A08');
-      hairGrad.addColorStop(0.3, '#3D2410');
-      hairGrad.addColorStop(0.6, '#4A2E14');
-      hairGrad.addColorStop(1, '#1A0A00');
-      ctx.fillStyle = hairGrad;
-      ctx.fill();
-      // Hair highlight
-      ctx.beginPath();
-      ctx.ellipse(cx - 10, cy + headBob - 55, 22, 10, -0.3, 0, Math.PI);
-      ctx.fillStyle = 'rgba(100,60,20,0.4)';
-      ctx.fill();
-      // Side hair left
-      ctx.beginPath();
-      ctx.moveTo(cx - 56, cy + headBob - 10);
-      ctx.bezierCurveTo(cx - 68, cy + headBob + 10, cx - 62, cy + headBob + 40, cx - 48, cy + headBob + 55);
-      ctx.bezierCurveTo(cx - 55, cy + headBob + 30, cx - 60, cy + headBob, cx - 58, cy + headBob - 20);
-      ctx.closePath();
-      ctx.fillStyle = '#2D1A08';
-      ctx.fill();
-      // Side hair right
-      ctx.beginPath();
-      ctx.moveTo(cx + 56, cy + headBob - 10);
-      ctx.bezierCurveTo(cx + 68, cy + headBob + 10, cx + 62, cy + headBob + 40, cx + 48, cy + headBob + 55);
-      ctx.bezierCurveTo(cx + 55, cy + headBob + 30, cx + 60, cy + headBob, cx + 58, cy + headBob - 20);
-      ctx.closePath();
-      ctx.fillStyle = '#2D1A08';
-      ctx.fill();
-
-      // ── Forehead highlight ──
-      ctx.beginPath();
-      ctx.ellipse(cx - 8, cy + headBob - 28, 26, 18, -0.2, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(240,190,140,0.15)';
-      ctx.fill();
-
-      // ── Eyebrows ──
-      const browY = cy + headBob - 18;
-      // Left brow
-      ctx.beginPath();
-      ctx.moveTo(cx - 38, browY);
-      ctx.bezierCurveTo(cx - 30, browY - 5, cx - 18, browY - 6, cx - 10, browY - 2);
-      ctx.lineWidth = 3.5;
-      ctx.strokeStyle = '#1A0A00';
-      ctx.lineCap = 'round';
-      ctx.stroke();
-      // Right brow
-      ctx.beginPath();
-      ctx.moveTo(cx + 38, browY);
-      ctx.bezierCurveTo(cx + 30, browY - 5, cx + 18, browY - 6, cx + 10, browY - 2);
-      ctx.stroke();
-
-      // ── Eyes ──
-      const eyeY = cy + headBob - 5;
-      const eo = s.eyeOpen; // 0 = closed, 1 = open
-
-      // Left eye socket
-      ctx.beginPath();
-      ctx.ellipse(cx - 24, eyeY, 14, 12, 0, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0,0,0,0.12)';
-      ctx.fill();
-
-      // Left eye white
-      ctx.beginPath();
-      ctx.ellipse(cx - 24, eyeY, 12, 10 * eo, 0, 0, Math.PI * 2);
-      ctx.fillStyle = '#F5F0E8';
-      ctx.fill();
-
-      // Left iris
-      if(eo > 0.3) {
-        const irisGrad = ctx.createRadialGradient(cx-22, eyeY-2, 1, cx-24, eyeY, 7);
-        irisGrad.addColorStop(0, '#6B4226');
-        irisGrad.addColorStop(0.4, '#4A2C16');
-        irisGrad.addColorStop(1, '#2A1608');
-        ctx.beginPath();
-        ctx.ellipse(cx - 24, eyeY, 7, 7 * eo, 0, 0, Math.PI * 2);
-        ctx.fillStyle = irisGrad;
-        ctx.fill();
-        // Pupil
-        ctx.beginPath();
-        ctx.ellipse(cx - 24, eyeY, 3.5, 3.5 * eo, 0, 0, Math.PI * 2);
-        ctx.fillStyle = '#050505';
-        ctx.fill();
-        // Eye highlight
-        ctx.beginPath();
-        ctx.ellipse(cx - 21, eyeY - 2.5, 2, 2, 0, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-        ctx.fill();
-      }
-
-      // Left eyelid
-      ctx.beginPath();
-      ctx.ellipse(cx - 24, eyeY - 10 * eo, 13, 10 * (1-eo) + 2, 0, 0, Math.PI * 2);
-      ctx.fillStyle = '#C07840';
-      ctx.fill();
-
-      // Left eyelashes
-      if(eo > 0.5) {
-        ctx.strokeStyle = '#1A0A00';
-        ctx.lineWidth = 1.2;
-        for(let l=0;l<5;l++){
-          const a = -Math.PI * 0.15 + l * (Math.PI * 0.3 / 4);
-          ctx.beginPath();
-          ctx.moveTo(cx - 24 + Math.cos(a)*12, eyeY + Math.sin(a)*10*eo);
-          ctx.lineTo(cx - 24 + Math.cos(a)*16, eyeY + Math.sin(a)*14*eo - 2);
-          ctx.stroke();
-        }
-      }
-
-      // Right eye socket
-      ctx.beginPath();
-      ctx.ellipse(cx + 24, eyeY, 14, 12, 0, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0,0,0,0.12)';
-      ctx.fill();
-
-      // Right eye white
-      ctx.beginPath();
-      ctx.ellipse(cx + 24, eyeY, 12, 10 * eo, 0, 0, Math.PI * 2);
-      ctx.fillStyle = '#F5F0E8';
-      ctx.fill();
-
-      // Right iris
-      if(eo > 0.3) {
-        const irisGrad2 = ctx.createRadialGradient(cx+26, eyeY-2, 1, cx+24, eyeY, 7);
-        irisGrad2.addColorStop(0, '#6B4226');
-        irisGrad2.addColorStop(0.4, '#4A2C16');
-        irisGrad2.addColorStop(1, '#2A1608');
-        ctx.beginPath();
-        ctx.ellipse(cx + 24, eyeY, 7, 7 * eo, 0, 0, Math.PI * 2);
-        ctx.fillStyle = irisGrad2;
-        ctx.fill();
-        // Pupil
-        ctx.beginPath();
-        ctx.ellipse(cx + 24, eyeY, 3.5, 3.5 * eo, 0, 0, Math.PI * 2);
-        ctx.fillStyle = '#050505';
-        ctx.fill();
-        // Highlight
-        ctx.beginPath();
-        ctx.ellipse(cx + 27, eyeY - 2.5, 2, 2, 0, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-        ctx.fill();
-      }
-
-      // Right eyelid
-      ctx.beginPath();
-      ctx.ellipse(cx + 24, eyeY - 10 * eo, 13, 10 * (1-eo) + 2, 0, 0, Math.PI * 2);
-      ctx.fillStyle = '#C07840';
-      ctx.fill();
-
-      // Right eyelashes
-      if(eo > 0.5) {
-        ctx.strokeStyle = '#1A0A00';
-        ctx.lineWidth = 1.2;
-        for(let l=0;l<5;l++){
-          const a = -Math.PI * 0.15 + l * (Math.PI * 0.3 / 4);
-          ctx.beginPath();
-          ctx.moveTo(cx + 24 + Math.cos(a)*12, eyeY + Math.sin(a)*10*eo);
-          ctx.lineTo(cx + 24 + Math.cos(a)*16, eyeY + Math.sin(a)*14*eo - 2);
-          ctx.stroke();
-        }
-      }
-
-      // ── Nose ──
-      const noseY = cy + headBob + 16;
-      ctx.beginPath();
-      ctx.moveTo(cx, eyeY + 8);
-      ctx.bezierCurveTo(cx + 2, noseY - 6, cx + 8, noseY - 2, cx + 10, noseY + 4);
-      ctx.bezierCurveTo(cx + 7, noseY + 6, cx + 2, noseY + 6, cx, noseY + 5);
-      ctx.bezierCurveTo(cx - 2, noseY + 6, cx - 7, noseY + 6, cx - 10, noseY + 4);
-      ctx.bezierCurveTo(cx - 8, noseY - 2, cx - 2, noseY - 6, cx, eyeY + 8);
-      ctx.fillStyle = 'rgba(0,0,0,0.12)';
-      ctx.fill();
-      // Nose bridge highlight
-      ctx.beginPath();
-      ctx.moveTo(cx - 1, eyeY + 6);
-      ctx.lineTo(cx - 2, noseY - 2);
-      ctx.lineWidth = 1.5;
-      ctx.strokeStyle = 'rgba(240,190,140,0.4)';
-      ctx.stroke();
-
-      // ── Cheeks ──
-      const ck = ctx.createRadialGradient(cx-30, cy+headBob+8, 0, cx-30, cy+headBob+8, 18);
-      ck.addColorStop(0, 'rgba(220,120,100,0.25)');
-      ck.addColorStop(1, 'transparent');
-      ctx.fillStyle = ck;
-      ctx.beginPath(); ctx.ellipse(cx-30, cy+headBob+8, 18, 14, 0, 0, Math.PI*2); ctx.fill();
-      const ck2 = ctx.createRadialGradient(cx+30, cy+headBob+8, 0, cx+30, cy+headBob+8, 18);
-      ck2.addColorStop(0, 'rgba(220,120,100,0.25)'); ck2.addColorStop(1, 'transparent');
-      ctx.fillStyle = ck2;
-      ctx.beginPath(); ctx.ellipse(cx+30, cy+headBob+8, 18, 14, 0, 0, Math.PI*2); ctx.fill();
-
-      // ── Mouth ──
-      const mouthY = cy + headBob + 36;
-      const mo = s.mouthOpen;
-
-      // Lip shadow
-      ctx.beginPath();
-      ctx.ellipse(cx, mouthY + 2, 22, 6 + mo * 4, 0, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0,0,0,0.15)';
-      ctx.fill();
-
-      // Upper lip
-      ctx.beginPath();
-      ctx.moveTo(cx - 20, mouthY);
-      ctx.bezierCurveTo(cx - 12, mouthY - 5, cx - 5, mouthY - 7, cx, mouthY - 5);
-      ctx.bezierCurveTo(cx + 5, mouthY - 7, cx + 12, mouthY - 5, cx + 20, mouthY);
-      ctx.bezierCurveTo(cx + 12, mouthY - 2, cx + 5, mouthY - 1, cx, mouthY - 1 + mo * 2);
-      ctx.bezierCurveTo(cx - 5, mouthY - 1, cx - 12, mouthY - 2, cx - 20, mouthY);
-      ctx.closePath();
-      const ulipGrad = ctx.createLinearGradient(cx-20, mouthY-7, cx+20, mouthY);
-      ulipGrad.addColorStop(0, '#B05050');
-      ulipGrad.addColorStop(0.5, '#C06060');
-      ulipGrad.addColorStop(1, '#B05050');
-      ctx.fillStyle = ulipGrad;
-      ctx.fill();
-
-      // Mouth interior (when open)
-      if(mo > 0.05) {
-        ctx.beginPath();
-        ctx.ellipse(cx, mouthY + mo * 5, 16, mo * 9, 0, 0, Math.PI * 2);
-        ctx.fillStyle = '#1A0808';
-        ctx.fill();
-        // Teeth
-        if(mo > 0.15) {
-          ctx.beginPath();
-          ctx.ellipse(cx, mouthY + mo * 2, 14, mo * 5, 0, 0, Math.PI);
-          ctx.fillStyle = '#F5F5EE';
-          ctx.fill();
-        }
-        // Tongue hint
-        if(mo > 0.3) {
-          ctx.beginPath();
-          ctx.ellipse(cx, mouthY + mo * 9, 10, mo * 4, 0, 0, Math.PI);
-          ctx.fillStyle = '#C06060';
-          ctx.fill();
-        }
-      }
-
-      // Lower lip
-      ctx.beginPath();
-      ctx.moveTo(cx - 20, mouthY);
-      ctx.bezierCurveTo(cx - 12, mouthY + 2 + mo * 2, cx, mouthY + 8 + mo * 8, cx, mouthY + 8 + mo * 8);
-      ctx.bezierCurveTo(cx, mouthY + 8 + mo * 8, cx + 12, mouthY + 2 + mo * 2, cx + 20, mouthY);
-      ctx.bezierCurveTo(cx + 10, mouthY + 4 + mo * 4, cx, mouthY + 5 + mo * 5, cx - 10, mouthY + 4 + mo * 4);
-      ctx.closePath();
-      const llipGrad = ctx.createLinearGradient(cx-20, mouthY, cx+20, mouthY+10);
-      llipGrad.addColorStop(0, '#B05050');
-      llipGrad.addColorStop(0.5, '#D07070');
-      llipGrad.addColorStop(1, '#B05050');
-      ctx.fillStyle = llipGrad;
-      ctx.fill();
-
-      // Lower lip highlight
-      ctx.beginPath();
-      ctx.ellipse(cx, mouthY + 6 + mo * 4, 10, 3, 0, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(240,190,150,0.3)';
-      ctx.fill();
-
-      // ── Chin shadow ──
-      const chinGrad = ctx.createRadialGradient(cx, cy+headBob+60, 0, cx, cy+headBob+68, 20);
-      chinGrad.addColorStop(0, 'rgba(0,0,0,0.1)'); chinGrad.addColorStop(1, 'transparent');
-      ctx.fillStyle = chinGrad;
-      ctx.beginPath(); ctx.ellipse(cx, cy+headBob+62, 26, 10, 0, 0, Math.PI*2); ctx.fill();
-
-      // ── Ear left ──
-      ctx.beginPath();
-      ctx.ellipse(cx - 56, cy + headBob + 4, 8, 13, 0.2, 0, Math.PI * 2);
-      ctx.fillStyle = '#C07840';
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(cx - 56, cy + headBob + 4, 4, 8, 0.2, 0, Math.PI * 2);
-      ctx.fillStyle = '#A06030';
-      ctx.fill();
-
-      // ── Ear right ──
-      ctx.beginPath();
-      ctx.ellipse(cx + 56, cy + headBob + 4, 8, 13, -0.2, 0, Math.PI * 2);
-      ctx.fillStyle = '#C07840';
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(cx + 56, cy + headBob + 4, 4, 8, -0.2, 0, Math.PI * 2);
-      ctx.fillStyle = '#A06030';
-      ctx.fill();
-
-      // ── Face shine ──
-      const shineGrad = ctx.createRadialGradient(cx - 20, cy + headBob - 40, 0, cx - 10, cy + headBob - 20, 50);
-      shineGrad.addColorStop(0, 'rgba(255,230,190,0.18)');
-      shineGrad.addColorStop(1, 'transparent');
-      ctx.fillStyle = shineGrad;
-      ctx.beginPath(); ctx.ellipse(cx, cy + headBob, 58, 68, 0, 0, Math.PI * 2); ctx.fill();
-    }
-
-    function animate() {
-      const s = stateRef.current;
-      s.t++;
-      s.breathPhase += 0.018;
-      s.headBob += 0.008;
-
-      // Blink logic
-      s.blinkT++;
-      if(s.blinkT >= s.nextBlink) {
-        s.eyeOpen = Math.max(0, s.eyeOpen - 0.2);
-        if(s.eyeOpen <= 0) {
-          s.eyeOpen = 0;
-          if(s.blinkT >= s.nextBlink + 3) {
-            s.eyeOpen = Math.min(1, s.eyeOpen + 0.25);
-            if(s.eyeOpen >= 1) {
-              s.blinkT = 0;
-              s.nextBlink = 90 + Math.floor(Math.random() * 120);
-            }
-          }
-        }
-      }
-
-      // Mouth animation
-      if(s.speaking) {
-        const speechPattern = [0.15, 0.45, 0.7, 0.5, 0.2, 0.6, 0.35, 0.55, 0.25, 0.8, 0.4, 0.1];
-        const idx = Math.floor(s.t / 6) % speechPattern.length;
-        const next = speechPattern[(idx + 1) % speechPattern.length];
-        const frac = (s.t % 6) / 6;
-        s.mouthOpen = speechPattern[idx] * (1 - frac) + next * frac;
-      } else {
-        s.mouthOpen = Math.max(0, s.mouthOpen - 0.08);
-      }
-
-      drawAvatar(s);
-      animRef.current = requestAnimationFrame(animate);
-    }
-
-    animRef.current = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(animRef.current);
-  }, []);
+function RealisticAvatar({ speaking, pipelineStage, fullscreen=false }) {
+  const TUTOR_IMG = "data:image/jpeg;base64,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";
 
   const pipeSteps = [
     {key:'student', label:'Student Question', icon:'💬'},
@@ -726,19 +288,69 @@ function RealisticAvatar({ speaking, pipelineStage }) {
   const stageOrder = ['idle','student','llm','voice','avatar','done'];
   const curIdx = stageOrder.indexOf(pipelineStage);
 
+  if(fullscreen) {
+    return (
+      <div style={{position:'absolute',inset:0,overflow:'hidden',background:'#050710'}}>
+        {/* Teacher image fills the screen */}
+        <img
+          src={TUTOR_IMG}
+          alt="AI Tutor"
+          style={{
+            width:'100%', height:'100%', objectFit:'cover', objectPosition:'center top',
+            filter: speaking ? 'brightness(1.05)' : 'brightness(0.95)',
+            transition:'filter .3s',
+          }}
+        />
+        {/* Subtle speaking indicator overlay */}
+        {speaking && (
+          <div style={{
+            position:'absolute', inset:0,
+            boxShadow:'inset 0 0 60px rgba(91,141,239,0.35)',
+            pointerEvents:'none',
+            animation:'speakGlow 1.2s ease-in-out infinite alternate',
+          }}/>
+        )}
+        {/* Speaking badge */}
+        {speaking && (
+          <div style={{
+            position:'absolute', bottom:24, left:'50%', transform:'translateX(-50%)',
+            display:'flex', alignItems:'center', gap:8, padding:'7px 18px',
+            background:'rgba(10,11,20,0.75)', border:'1px solid rgba(91,141,239,0.4)',
+            borderRadius:20, backdropFilter:'blur(10px)',
+          }}>
+            <div className="sound-bars">
+              {[1,2,3,4].map(i=><div key={i} className="bar" style={{animationDelay:`${i*0.15}s`}}/>)}
+            </div>
+            <span style={{fontSize:12,color:'#7BA8FF',fontWeight:600,fontFamily:'var(--font-h)'}}>Speaking...</span>
+          </div>
+        )}
+        {/* Processing indicator */}
+        {!speaking && pipelineStage !== 'idle' && pipelineStage !== 'done' && (
+          <div style={{
+            position:'absolute', bottom:24, left:'50%', transform:'translateX(-50%)',
+            display:'flex', alignItems:'center', gap:8, padding:'7px 18px',
+            background:'rgba(10,11,20,0.75)', border:'1px solid rgba(240,160,64,0.3)',
+            borderRadius:20, backdropFilter:'blur(10px)',
+          }}>
+            <Spin s={12}/>
+            <span style={{fontSize:12,color:'#F0A040',fontWeight:600,fontFamily:'var(--font-h)'}}>Processing...</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Sidebar mode (non-fullscreen — kept for compatibility)
   return (
     <div className="avatar-panel">
       <div className="avatar-label">AI Tutor</div>
-      <div className="avatar-canvas-wrap">
-        <div className="avatar-glow"/>
-        <div className={`speaking-ring ${speaking?'on':''}`}/>
-        <canvas ref={canvasRef} style={{borderRadius:'50% 50% 45% 45%',display:'block'}}/>
+      <div style={{position:'relative',width:160,borderRadius:12,overflow:'hidden',flexShrink:0}}>
+        <img src={TUTOR_IMG} alt="AI Tutor" style={{width:'100%',display:'block',objectFit:'cover',objectPosition:'center top',height:190}}/>
+        {speaking && <div style={{position:'absolute',inset:0,boxShadow:'inset 0 0 20px rgba(91,141,239,0.5)',borderRadius:12}}/>}
       </div>
       {speaking ? (
         <div className="speaking-badge">
-          <div className="sound-bars">
-            {[1,2,3,4].map(i=><div key={i} className="bar" style={{animationDelay:`${i*0.15}s`}}/>)}
-          </div>
+          <div className="sound-bars">{[1,2,3,4].map(i=><div key={i} className="bar" style={{animationDelay:`${i*0.15}s`}}/>)}</div>
           Speaking...
         </div>
       ) : (
@@ -746,8 +358,6 @@ function RealisticAvatar({ speaking, pipelineStage }) {
           {pipelineStage==='idle'?'Ready to teach':'Processing...'}
         </div>
       )}
-
-      {/* Pipeline */}
       <div className="pipeline">
         {pipeSteps.map((step, i) => {
           const stepIdx = stageOrder.indexOf(step.key);
@@ -803,14 +413,14 @@ function Stars(){
 // ── Navbar ────────────────────────────────────────────
 function Navbar({user,onNav}){
   return(<nav className="nav">
-    <div className="logo"><div className="logo-icon">🤖</div>SmartAna</div>
+    <div className="logo"><div className="logo-icon">S</div>SmartAna</div>
     <div style={{display:'flex',alignItems:'center',gap:10}}>
       {user?(<>
         <button className="btn btn-ghost btn-sm" onClick={()=>onNav('dashboard')}>Dashboard</button>
         <div style={{width:32,height:32,borderRadius:'50%',background:'var(--blue)',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'var(--font-h)',fontWeight:700,fontSize:14,color:'#fff'}}>{user.name.charAt(0).toUpperCase()}</div>
       </>):(<>
         <button className="btn btn-ghost btn-sm" onClick={()=>onNav('auth')}>Log In</button>
-        <button className="btn btn-primary btn-sm" onClick={()=>onNav('auth')}>Get Started →</button>
+        <button className="btn btn-primary btn-sm" onClick={()=>onNav('auth')}>Get Started</button>
       </>)}
     </div>
   </nav>);
@@ -827,11 +437,11 @@ function Landing({onStart}){
   return(<div style={{position:'relative',minHeight:'100vh'}}>
     <Stars/>
     <div className="hero fade-up">
-      <div className="hero-eyebrow">✨ AI-Powered 1-on-1 Learning</div>
+      <div className="hero-eyebrow">AI-Powered 1-on-1 Learning</div>
       <h1>Learn with a Realistic<br/><span className="grad">AI Tutor Built for You</span></h1>
-      <p>Stop buying courses you never finish. MentorAI assesses your level, builds your roadmap, and teaches you step-by-step with a lifelike AI tutor — 24/7.</p>
+      <p>Stop buying courses you never finish. Mentana assesses your level, builds your roadmap, and teaches you step-by-step with a lifelike AI tutor — 24/7.</p>
       <div className="hero-btns">
-        <button className="btn btn-amber btn-lg" onClick={onStart}>Start Learning Free →</button>
+        <button className="btn btn-amber btn-lg" onClick={onStart}>Start Learning Free</button>
         <button className="btn btn-ghost btn-lg" onClick={onStart}>See How It Works</button>
       </div>
     </div>
@@ -845,17 +455,17 @@ function Landing({onStart}){
 // ── Auth ───────────────────────────────────────────────
 function Auth({onAuth}){
   const [tab,setTab]=useState('signup');const [name,setName]=useState('');const [email,setEmail]=useState('');const [pass,setPass]=useState('');const [err,setErr]=useState('');
-  function sub(e){e.preventDefault();setErr('');if(tab==='signup'&&!name.trim()){setErr('Enter your name');return;}if(!email.includes('@')){setErr('Valid email required');return;}if(pass.length<4){setErr('Password too short');return;}onAuth({name:name||email.split('@')[0],email});}
+  function sub(){setErr('');if(tab==='signup'&&!name.trim()){setErr('Enter your name');return;}if(!email.trim()){setErr('Enter your email');return;}if(!pass.trim()){setErr('Enter your password');return;}onAuth({name:name||email.split('@')[0],email});}
   return(<div style={{position:'relative',minHeight:'100vh'}}><Stars/><div className="auth-wrap"><div className="auth-card fade-up">
-    <div style={{textAlign:'center',marginBottom:22}}><div style={{fontSize:36,marginBottom:8}}>🤖</div><h2 style={{fontFamily:'var(--font-h)',fontSize:21,fontWeight:800,marginBottom:5}}>{tab==='signup'?'Create Your Account':'Welcome Back'}</h2><p style={{color:'var(--text-muted)',fontSize:13.5}}>{tab==='signup'?'Start your AI-guided learning journey':'Continue where you left off'}</p></div>
+    <div style={{textAlign:'center',marginBottom:22}}><div style={{fontSize:36,marginBottom:8}}>S</div><h2 style={{fontFamily:'var(--font-h)',fontSize:21,fontWeight:800,marginBottom:5}}>{tab==='signup'?'Create Your Account':'Welcome Back'}</h2><p style={{color:'var(--text-muted)',fontSize:13.5}}>{tab==='signup'?'Start your AI-guided learning journey':'Continue where you left off'}</p></div>
     <div className="auth-tabs"><button className={`auth-tab ${tab==='signup'?'on':''}`} onClick={()=>setTab('signup')}>Sign Up</button><button className={`auth-tab ${tab==='login'?'on':''}`} onClick={()=>setTab('login')}>Log In</button></div>
-    <form onSubmit={sub}>
-      {tab==='signup'&&<div className="fgroup"><label className="flabel">Full Name</label><input className="input" placeholder="Your name" value={name} onChange={e=>setName(e.target.value)}/></div>}
-      <div className="fgroup"><label className="flabel">Email</label><input className="input" type="email" placeholder="you@email.com" value={email} onChange={e=>setEmail(e.target.value)}/></div>
-      <div className="fgroup"><label className="flabel">Password</label><input className="input" type="password" placeholder="••••••••" value={pass} onChange={e=>setPass(e.target.value)}/></div>
+    <div>
+      {tab==='signup'&&<div className="fgroup"><label className="flabel">Full Name</label><input className="input" placeholder="Your name" value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sub()}/></div>}
+      <div className="fgroup"><label className="flabel">Email</label><input className="input" type="email" placeholder="you@email.com" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sub()}/></div>
+      <div className="fgroup"><label className="flabel">Password</label><input className="input" type="password" placeholder="••••••••" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sub()}/></div>
       {err&&<div style={{padding:'8px 12px',background:'rgba(239,68,68,.1)',border:'1px solid rgba(239,68,68,.3)',borderRadius:8,color:'#F87171',fontSize:13,marginBottom:13}}>{err}</div>}
-      <button type="submit" className="btn btn-primary w-full" style={{padding:13}}>{tab==='signup'?'Create Account & Start Learning':'Log In'}</button>
-    </form>
+      <button className="btn btn-primary w-full" style={{padding:13}} onClick={sub}>{tab==='signup'?'Create Account & Start Learning':'Log In'}</button>
+    </div>
     <p style={{textAlign:'center',marginTop:16,fontSize:13,color:'var(--text-muted)'}}>{tab==='signup'?'Already have an account? ':'No account? '}<span style={{color:'var(--blue)',cursor:'pointer',fontWeight:600}} onClick={()=>setTab(tab==='signup'?'login':'signup')}>{tab==='signup'?'Log In':'Sign Up'}</span></p>
   </div></div></div>);
 }
@@ -865,7 +475,7 @@ function SkillSelect({user,onSelect}){
   return(<div style={{position:'relative',minHeight:'100vh'}}><Stars/><div className="page-wrap">
     <div className="pg-head fade-up"><div className="badge badge-blue" style={{marginBottom:10}}>👋 Hi, {user.name}!</div><h1>What do you want to learn?</h1><p>Your AI tutor will assess your level and build a personalized roadmap.</p></div>
     <div className="skgrid fade-up" style={{animationDelay:'.1s'}}>
-      {SKILLS.map((s,i)=><div key={s.id} className="skcard" style={{animationDelay:`${i*.04}s`}} onClick={()=>onSelect(s)}><div style={{fontSize:32}}>{s.emoji}</div><h3>{s.name}</h3><p>{s.desc}</p><div style={{marginTop:12,color:'var(--blue)',fontSize:13,fontWeight:600}}>Start Learning →</div></div>)}
+      {SKILLS.map((s,i)=><div key={s.id} className="skcard" style={{animationDelay:`${i*.04}s`}} onClick={()=>onSelect(s)}><div style={{fontSize:32}}>{s.emoji}</div><h3>{s.name}</h3><p>{s.desc}</p><div style={{marginTop:12,color:'var(--blue)',fontSize:13,fontWeight:600}}>Start Learning</div></div>)}
     </div>
   </div></div>);
 }
@@ -885,7 +495,7 @@ function Assessment({skill,onComplete}){
     <div className="as-prog">{qs.map((_,i)=><div key={i} className={`as-step ${i<cur?'done':i===cur?'cur':''}`}/>)}</div>
     <div className="qtext">{q.q}</div>
     {q.options.map((o,i)=><button key={i} className={`opt ${sel===i?'sel':''}`} onClick={()=>setSel(i)}><span style={{display:'inline-block',width:20,height:20,borderRadius:'50%',background:sel===i?'var(--blue)':'var(--border2)',color:sel===i?'#fff':'var(--text-muted)',textAlign:'center',lineHeight:'20px',fontSize:11,fontWeight:700,marginRight:11}}>{String.fromCharCode(65+i)}</span>{o}</button>)}
-    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:16}}><div style={{fontSize:13,color:'var(--text-dim)'}}>Pick an answer</div><button className="btn btn-primary" disabled={sel===null} onClick={next} style={{opacity:sel===null?.5:1}}>{cur+1===qs.length?'Submit →':'Next →'}</button></div>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:16}}><div style={{fontSize:13,color:'var(--text-dim)'}}>Pick an answer</div><button className="btn btn-primary" disabled={sel===null} onClick={next} style={{opacity:sel===null?.5:1}}>{cur+1===qs.length?'Submit':'Next'}</button></div>
   </div></div></div>);
 }
 
@@ -905,7 +515,7 @@ function Roadmap({skill,level,explanation,roadmap,onStart,onGenerate}){
       </div>
       <h3 style={{fontFamily:'var(--font-h)',fontSize:15.5,fontWeight:700,marginBottom:12}}>Your Roadmap <span style={{color:'var(--text-muted)',fontWeight:400,fontSize:13}}>({roadmap.length} lessons)</span></h3>
       <div className="ls-list">{roadmap.map(l=><div key={l.id} className="ls-item"><div className="ls-num">{l.id}</div><div className="ls-info"><h4>{l.title}</h4><p>{l.description}</p></div><div style={{display:'flex',alignItems:'center',gap:6}}><span style={{fontSize:14}}>{ti[l.type]||'📖'}</span><span style={{fontSize:12,color:'var(--text-muted)'}}>{l.duration}</span></div></div>)}</div>
-      <button className="btn btn-amber btn-lg w-full" onClick={()=>onStart(0)}>🚀 Start Learning Now</button>
+      <button className="btn btn-amber btn-lg w-full" onClick={()=>onStart(0)}>Start Learning Now</button>
       <p style={{textAlign:'center',fontSize:12.5,color:'var(--text-dim)',marginTop:9}}>Begin with Lesson 1 · Go at your own pace</p>
     </div>
   </div></div>);
@@ -922,16 +532,16 @@ function useTypewriter(text, speed=12){
 function TutorPage({skill,level,roadmap,lessonIdx,completed,onComplete,onNext}){
   const lesson=roadmap[lessonIdx];
   const [lt,setLt]=useState('');const [practice,setPractice]=useState('');const [loading,setLoading]=useState(true);
-  const [msgs,setMsgs]=useState([{role:'ai',text:`Hi! I'm your AI tutor. I'll explain "${lesson.title}" clearly. Ask anything! 👋`}]);
+  const [msgs,setMsgs]=useState([{role:'ai',text:`Hi! I'm your AI tutor. I'll explain "${lesson.title}" clearly. Ask anything!`}]);
   const [chatIn,setChatIn]=useState('');const [chatLoad,setChatLoad]=useState(false);
   const [pAns,setPAns]=useState('');const [pFb,setPFb]=useState('');const [pLoad,setPLoad]=useState(false);
-  const [tts,setTts]=useState(false);const [showP,setShowP]=useState(false);
+  const [tts,setTts]=useState(false);const [showPanel,setShowPanel]=useState(null); // null | 'notes' | 'practice'
   const [speaking,setSpeaking]=useState(false);
   const [pipeStage,setPipeStage]=useState('idle');
   const chatEnd=useRef(null);
   const {out,done}=useTypewriter(lt);
 
-  useEffect(()=>{load();setMsgs([{role:'ai',text:`Hi! I'm your AI tutor for "${lesson.title}". Ask me anything! 👋`}]);setPAns('');setPFb('');setShowP(false);setPipeStage('idle');setSpeaking(false);},[lessonIdx]);
+  useEffect(()=>{load();setMsgs([{role:'ai',text:`Hi! I'm your AI tutor for "${lesson.title}". Ask me anything!`}]);setPAns('');setPFb('');setShowPanel(null);setPipeStage('idle');setSpeaking(false);},[lessonIdx]);
   useEffect(()=>{if(done&&tts&&lt){setPipeStage('voice');setTimeout(()=>{setSpeaking(true);speakWithPipeline(lt,stage=>{setPipeStage(stage);},()=>{setSpeaking(false);setPipeStage('done');});},300);}},[done,tts]);
   useEffect(()=>{chatEnd.current?.scrollIntoView({behavior:'smooth'});},[msgs]);
 
@@ -939,13 +549,13 @@ function TutorPage({skill,level,roadmap,lessonIdx,completed,onComplete,onNext}){
     setLoading(true);setLt('');setPractice('');setPipeStage('idle');
     try{
       setPipeStage('llm');
-      const t=await callAI([{role:'user',content:`Teach "${lesson.title}" in ${skill.name} at ${level} level. 200 words max. Include: 1) Clear explanation 2) Example or code block 3) Key takeaway. Be warm and conversational.`}],`You are MentorAI, expert ${skill.name} tutor. Teach at ${level} level. Be clear, concise, friendly.`,550);
+      const t=await callAI([{role:'user',content:`Teach "${lesson.title}" in ${skill.name} at ${level} level. 200 words max. Include: 1) Clear explanation 2) Example or code block 3) Key takeaway. Be warm and conversational.`}],`You are Mentana, expert ${skill.name} tutor. Teach at ${level} level. Be clear, concise, friendly.`,550);
       setLt(t);
       const p=await callAI([{role:'user',content:`Create a 1-2 sentence practice task for "${lesson.title}" in ${skill.name} (${level}). Actionable, 5-10 min.`}],'Return only the task text.',120);
       setPractice(p);
       setPipeStage('avatar');
     }catch{
-      setLt(`Welcome to "${lesson.title}" in ${skill.name}!\n\nYour AI tutor is ready to guide you. Ask questions below and I'll explain, simplify, and give examples in real time.\n\nEvery concept is broken down step by step so you can understand and apply it right away.`);
+      setLt(`Welcome to "${lesson.title}" in ${skill.name}!\n\nYour AI tutor is ready to guide you. Ask questions below and I will explain, simplify, and give examples in real time.`);
       setPractice(`Apply "${lesson.title}" by creating a small hands-on example.`);
       setPipeStage('avatar');
     }
@@ -956,21 +566,14 @@ function TutorPage({skill,level,roadmap,lessonIdx,completed,onComplete,onNext}){
     if(!chatIn.trim()||chatLoad)return;
     const m=chatIn.trim();setChatIn('');
     setMsgs(p=>[...p,{role:'user',text:m}]);
-    setChatLoad(true);
-    setPipeStage('student');
+    setChatLoad(true);setPipeStage('student');
     try{
       setPipeStage('llm');
       const h=msgs.slice(1).map(x=>({role:x.role==='user'?'user':'assistant',content:x.text}));
-      const r=await callAI([...h,{role:'user',content:m}],`You are MentorAI teaching "${lesson.title}" in ${skill.name} (${level}). Answer in 60-80 words. Friendly, give examples.`,320);
+      const r=await callAI([...h,{role:'user',content:m}],`You are Mentana teaching "${lesson.title}" in ${skill.name} (${level}). Answer in 60-80 words. Friendly, give examples.`,320);
       setMsgs(p=>[...p,{role:'ai',text:r}]);
-      if(tts){
-        setPipeStage('voice');
-        setSpeaking(true);
-        speakWithPipeline(r,stage=>setPipeStage(stage),()=>{setSpeaking(false);setPipeStage('done');});
-      } else {
-        setPipeStage('avatar');
-        setTimeout(()=>setPipeStage('done'),800);
-      }
+      if(tts){setPipeStage('voice');setSpeaking(true);speakWithPipeline(r,stage=>setPipeStage(stage),()=>{setSpeaking(false);setPipeStage('done');});}
+      else{setPipeStage('avatar');setTimeout(()=>setPipeStage('done'),800);}
     }catch{
       setMsgs(p=>[...p,{role:'ai',text:"I couldn't connect right now — try again!"}]);
       setPipeStage('idle');
@@ -980,93 +583,124 @@ function TutorPage({skill,level,roadmap,lessonIdx,completed,onComplete,onNext}){
 
   async function submitP(){
     if(!pAns.trim()||pLoad)return;setPLoad(true);
-    try{const fb=await callAI([{role:'user',content:`Task: "${practice}"\nAnswer: "${pAns}"\nSkill: ${skill.name}, Level: ${level}\nGive 70-90 word encouraging feedback. Highlight strengths, 1 improvement, motivational close.`}],'Supportive AI tutor.',260);setPFb(fb);}catch{setPFb("Great effort! Every attempt builds your skills. Keep going!");}
+    try{const fb=await callAI([{role:'user',content:`Task: "${practice}"\nAnswer: "${pAns}"\nSkill: ${skill.name}, Level: ${level}\nGive 70-90 word encouraging feedback. Highlight strengths, 1 improvement, motivational close.`}],'Supportive AI tutor.',260);setPFb(fb);}
+    catch{setPFb("Great effort! Every attempt builds your skills. Keep going!");}
     setPLoad(false);
   }
 
   function fmt(text){return text.split(/(```[\s\S]*?```)/g).map((p,i)=>{if(p.startsWith('```'))return <div key={i} className="code-block">{p.replace(/```\w*\n?/,'').replace(/```$/,'')}</div>;return <span key={i}>{p}</span>;});}
 
   const isLast=lessonIdx===roadmap.length-1;
+  const hasPrev=lessonIdx>0;
 
-  return(<div className="tutor-page">
-    {/* Top bar */}
-    <div className="tutor-topbar">
-      <div style={{flex:1}}><div style={{fontFamily:'var(--font-h)',fontWeight:700,fontSize:13.5}}>{skill.emoji} Lesson {lesson.id}: {lesson.title}</div><div style={{fontSize:11.5,color:'var(--text-muted)',textTransform:'capitalize'}}>{skill.name} · {level} · {lesson.duration}</div></div>
-      <div style={{display:'flex',alignItems:'center',gap:9}}>
-        <button className={`tts-pill ${tts?'on':''}`} onClick={()=>{setTts(!tts);if(tts){stopSpeak();setSpeaking(false);setPipeStage('idle');}}}>{tts?'🔊':'🔇'} Voice {tts?'On':'Off'}</button>
-        <div className="badge badge-blue" style={{fontSize:11.5}}>{completed.length}/{roadmap.length} done</div>
-        {!isLast&&done&&<button className="btn btn-primary btn-sm" onClick={()=>onNext(lessonIdx+1)}>Next →</button>}
-        {isLast&&done&&<button className="btn btn-amber btn-sm" onClick={onComplete}>🎉 Finish!</button>}
+  return(
+    <div style={{height:'100vh',display:'flex',flexDirection:'column',background:'#0A0B0F',color:'#fff',fontFamily:'var(--font-b)'}}>
+
+      {/* ── TOP NAV BAR ── */}
+      <div style={{flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 24px',background:'rgba(10,11,15,0.95)',borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+        <button onClick={()=>onNext(Math.max(0,lessonIdx-1))} disabled={!hasPrev} style={{background:'none',border:'none',color:hasPrev?'#fff':'rgba(255,255,255,0.2)',cursor:hasPrev?'pointer':'default',fontSize:22,lineHeight:1,padding:'4px 8px'}}>&#8592;</button>
+        <div style={{textAlign:'center',flex:1}}>
+          <div style={{fontSize:13,color:'#B8A060',fontWeight:600,letterSpacing:'.3px'}}>Module 1: Lesson {lesson.id}</div>
+          <div style={{fontSize:15,fontWeight:700,color:'#fff',marginTop:2}}>{lesson.title}</div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <button className={`tts-pill ${tts?'on':''}`} onClick={()=>{setTts(!tts);if(tts){stopSpeak();setSpeaking(false);setPipeStage('idle');}}} style={{fontSize:12}}>Voice {tts?'On':'Off'}</button>
+          {!isLast&&done&&<button onClick={()=>onNext(lessonIdx+1)} style={{background:'none',border:'none',color:'#B8A060',cursor:'pointer',fontSize:15,fontWeight:700,display:'flex',alignItems:'center',gap:4}}>Next &#8594;</button>}
+          {isLast&&done&&<button onClick={onComplete} style={{background:'#4070E8',border:'none',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:700,padding:'7px 16px',borderRadius:8}}>Finish</button>}
+        </div>
       </div>
-    </div>
 
-    <div className="tutor-body">
-      {/* 16:9 screen */}
-      <div className="screen-stage">
-        <div className="screen-frame">
-          <div className="screen-chrome">
-            <div className="chrome-dot" style={{background:'#FF5F57'}}/><div className="chrome-dot" style={{background:'#FEBC2E'}}/><div className="chrome-dot" style={{background:'#28C840'}}/>
-            <div style={{marginLeft:9,fontSize:11,color:'var(--text-muted)',fontFamily:'var(--font-h)',fontWeight:600}}>MentorAI Studio — {lesson.title}</div>
-            {speaking && <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:5,fontSize:11,color:'var(--blue)',fontFamily:'var(--font-h)'}}><div style={{width:6,height:6,borderRadius:'50%',background:'var(--blue)',animation:'pulse .8s ease-in-out infinite'}}/>LIVE</div>}
-          </div>
-          <div className="screen-inner">
-            {/* Avatar Panel */}
-            <RealisticAvatar speaking={speaking} pipelineStage={pipeStage}/>
+      {/* ── MAIN VIDEO AREA ── */}
+      <div style={{flex:1,position:'relative',overflow:'hidden',display:'flex',flexDirection:'column'}}>
+        {/* Avatar fills the whole area */}
+        <div style={{flex:1,position:'relative',overflow:'hidden'}}>
+          <RealisticAvatar speaking={speaking} pipelineStage={pipeStage} fullscreen={true}/>
 
-            {/* Lesson Content Panel */}
-            <div className="lesson-panel">
-              {loading?(
-                <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',flex:1,gap:14}}>
-                  <Spin s={32}/>
-                  <div style={{fontFamily:'var(--font-h)',fontSize:14,color:'var(--text-muted)'}}>Your tutor is preparing the lesson...</div>
-                </div>
-              ):(
-                <div className="fade-in" style={{display:'flex',flexDirection:'column',gap:12,height:'100%'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:4}}>
-                    <div style={{fontFamily:'var(--font-h)',fontWeight:700,fontSize:16,color:'var(--text)'}}>{lesson.title}</div>
-                    <div className={`badge badge-${level==='beginner'?'teal':level==='intermediate'?'blue':'amber'}`} style={{fontSize:11,textTransform:'capitalize'}}>{level}</div>
-                  </div>
-                  <div className="lesson-bubble" style={{flex:1}}>
-                    {fmt(out)}
-                    {!done&&<span className="cur-blink"/>}
-                  </div>
-                  {done&&<div className="fade-in">
-                    <button className="btn btn-ghost btn-sm" onClick={()=>setShowP(!showP)} style={{marginBottom:showP?12:0}}>{showP?'Hide':'Show'} Practice Task ✏️</button>
-                    {showP&&<div className="practice-box fade-in">
-                      <h4>Practice Task</h4>
-                      <p style={{fontSize:13,color:'var(--text-muted)',marginBottom:10,lineHeight:1.65}}>{practice}</p>
-                      <textarea className="p-textarea" placeholder="Type your answer here..." value={pAns} onChange={e=>setPAns(e.target.value)}/>
-                      <div style={{display:'flex',gap:9,marginTop:9}}><button className="btn btn-amber btn-sm" onClick={submitP} disabled={!pAns.trim()||pLoad} style={{opacity:!pAns.trim()?.5:1}}>{pLoad?<><Spin s={13}/>Checking...</>:'Submit for Feedback →'}</button></div>
-                      {pFb&&<div className="fade-in" style={{marginTop:11,padding:'11px 14px',background:'var(--teal-dim)',border:'1px solid rgba(61,214,163,.25)',borderRadius:8,fontSize:13,color:'var(--text)',lineHeight:1.65}}><span style={{color:'var(--teal)',fontWeight:700}}>Feedback: </span>{pFb}</div>}
-                    </div>}
-                  </div>}
-                </div>
-              )}
+          {/* Loading overlay */}
+          {loading&&(
+            <div style={{position:'absolute',inset:0,background:'rgba(10,11,15,0.8)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:14}}>
+              <Spin s={36}/>
+              <div style={{fontSize:14,color:'rgba(255,255,255,0.6)'}}>Preparing your lesson...</div>
             </div>
-          </div>
-        </div>
-      </div>
+          )}
 
-      {/* Horizontal Chat Bar */}
-      <div className="chat-bar">
-        <div className="chat-bar-head">
-          <div style={{width:18,height:18,borderRadius:'50%',background:'linear-gradient(135deg,var(--blue),var(--pink))',display:'flex',alignItems:'center',justifyContent:'center',fontSize:9}}>🤖</div>
-          <span>Ask Your Tutor</span>
-          <div style={{marginLeft:'auto',fontSize:11,color:'var(--text-muted)'}}>Ask anything → AI explains → Voice reads → Avatar responds</div>
+          {/* Lesson notes overlay panel */}
+          {showPanel==='notes'&&(
+            <div style={{position:'absolute',inset:0,background:'rgba(10,11,15,0.92)',overflowY:'auto',padding:'28px 36px'}} className="fade-in">
+              <div style={{maxWidth:680,margin:'0 auto'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+                  <div style={{fontFamily:'var(--font-h)',fontSize:17,fontWeight:700,color:'#B8A060'}}>{lesson.title}</div>
+                  <button onClick={()=>setShowPanel(null)} style={{background:'rgba(255,255,255,0.08)',border:'none',color:'#fff',cursor:'pointer',fontSize:13,padding:'6px 14px',borderRadius:7}}>Close</button>
+                </div>
+                <div style={{fontSize:14,lineHeight:1.85,color:'rgba(255,255,255,0.85)',whiteSpace:'pre-wrap'}}>{fmt(out||'Loading lesson notes...')}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Practice lab overlay panel */}
+          {showPanel==='practice'&&(
+            <div style={{position:'absolute',inset:0,background:'rgba(10,11,15,0.92)',overflowY:'auto',padding:'28px 36px'}} className="fade-in">
+              <div style={{maxWidth:680,margin:'0 auto'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}>
+                  <div style={{fontFamily:'var(--font-h)',fontSize:17,fontWeight:700,color:'#B8A060'}}>Practice Lab</div>
+                  <button onClick={()=>setShowPanel(null)} style={{background:'rgba(255,255,255,0.08)',border:'none',color:'#fff',cursor:'pointer',fontSize:13,padding:'6px 14px',borderRadius:7}}>Close</button>
+                </div>
+                <div style={{fontSize:14,color:'rgba(255,255,255,0.6)',marginBottom:16,lineHeight:1.7}}>{practice}</div>
+                <textarea style={{width:'100%',minHeight:100,padding:'12px 15px',resize:'vertical',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:10,color:'#fff',fontSize:14,fontFamily:'var(--font-b)',outline:'none',boxSizing:'border-box'}} placeholder="Write your answer here..." value={pAns} onChange={e=>setPAns(e.target.value)}/>
+                <div style={{display:'flex',gap:10,marginTop:12}}>
+                  <button onClick={submitP} disabled={!pAns.trim()||pLoad} style={{background:'#4070E8',border:'none',color:'#fff',cursor:pAns.trim()?'pointer':'not-allowed',fontSize:13,fontWeight:600,padding:'10px 20px',borderRadius:8,opacity:pAns.trim()?1:.5,display:'flex',alignItems:'center',gap:8}}>
+                    {pLoad&&<Spin s={13}/>}Submit for Feedback
+                  </button>
+                </div>
+                {pFb&&<div style={{marginTop:16,padding:'14px 16px',background:'rgba(61,214,163,0.08)',border:'1px solid rgba(61,214,163,0.2)',borderRadius:10,fontSize:13,color:'rgba(255,255,255,0.85)',lineHeight:1.75}} className="fade-in"><span style={{color:'#3DD6A3',fontWeight:700}}>Feedback: </span>{pFb}</div>}
+              </div>
+            </div>
+          )}
+
+          {/* Chat messages overlay (appears above chat bar when there are messages) */}
+          {msgs.length>1&&showPanel===null&&(
+            <div style={{position:'absolute',bottom:0,left:0,right:0,maxHeight:'35%',overflowY:'auto',padding:'10px 20px',background:'linear-gradient(transparent,rgba(10,11,15,0.95))',display:'flex',flexDirection:'column',gap:6}}>
+              {msgs.slice(-4).map((m,i)=>(
+                <div key={i} style={{display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start'}}>
+                  <div style={{maxWidth:'70%',padding:'8px 13px',borderRadius:10,fontSize:13,lineHeight:1.5,background:m.role==='user'?'#4070E8':'rgba(255,255,255,0.1)',color:'#fff',backdropFilter:'blur(8px)'}}>
+                    {m.text}
+                  </div>
+                </div>
+              ))}
+              {chatLoad&&<div style={{display:'flex'}}><div style={{display:'flex',alignItems:'center',gap:6,padding:'8px 13px',borderRadius:10,background:'rgba(255,255,255,0.1)',fontSize:13,color:'rgba(255,255,255,0.5)'}}><Spin s={12}/>Thinking...</div></div>}
+              <div ref={chatEnd}/>
+            </div>
+          )}
         </div>
-        <div className="chat-bar-msgs">
-          {msgs.map((m,i)=><div key={i} style={{display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start'}}><div className={`cmsg ${m.role==='user'?'user':'ai'}`}>{m.text}</div></div>)}
-          {chatLoad&&<div style={{display:'flex'}}><div className="cmsg ai" style={{display:'flex',alignItems:'center',gap:6}}><Spin s={12}/><span style={{color:'var(--text-muted)',fontSize:12}}>Thinking...</span></div></div>}
-          <div ref={chatEnd}/>
-        </div>
-        <div className="chat-bar-row">
-          {["Explain simply","Give an example","Key takeaway?"].map((s,i)=><button key={i} className="quick-btn" onClick={()=>setChatIn(s)}>{s}</button>)}
-          <input className="chat-bar-in" placeholder="Ask a question about this lesson..." value={chatIn} onChange={e=>setChatIn(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendChat()}/>
-          <button className="send-btn" onClick={sendChat} disabled={!chatIn.trim()||chatLoad}>{chatLoad?<Spin s={13}/>:<>Send ➤</>}</button>
+
+        {/* ── ACTION BUTTONS ROW ── */}
+        {showPanel===null&&(
+          <div style={{flexShrink:0,display:'flex',justifyContent:'flex-end',gap:10,padding:'12px 20px',background:'rgba(10,11,15,0.95)'}}>
+            <button onClick={()=>setShowPanel('notes')} style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.12)',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500,padding:'9px 20px',borderRadius:20,backdropFilter:'blur(8px)',transition:'all .2s'}}>View Notes</button>
+            <button onClick={()=>setShowPanel('practice')} style={{background:'rgba(255,255,255,0.1)',border:'1px solid rgba(255,255,255,0.12)',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:500,padding:'9px 20px',borderRadius:20,backdropFilter:'blur(8px)',transition:'all .2s'}}>Practice Lab</button>
+          </div>
+        )}
+
+        {/* ── CHAT INPUT BAR ── */}
+        <div style={{flexShrink:0,background:'rgba(20,22,30,0.98)',borderTop:'1px solid rgba(255,255,255,0.06)',padding:'12px 20px',display:'flex',alignItems:'center',gap:10}}>
+          {["Explain simply","Give an example","Key takeaway?"].map((s,i)=>(
+            <button key={i} onClick={()=>setChatIn(s)} style={{background:'rgba(255,255,255,0.07)',border:'1px solid rgba(255,255,255,0.1)',color:'rgba(255,255,255,0.6)',cursor:'pointer',fontSize:12,padding:'6px 12px',borderRadius:15,whiteSpace:'nowrap',fontFamily:'var(--font-b)',transition:'all .15s'}}>
+              {s}
+            </button>
+          ))}
+          <input
+            value={chatIn}
+            onChange={e=>setChatIn(e.target.value)}
+            onKeyDown={e=>e.key==='Enter'&&sendChat()}
+            placeholder="Ask Your Questions"
+            style={{flex:1,background:'transparent',border:'none',color:'#B8A060',fontSize:14,outline:'none',fontFamily:'var(--font-b)'}}
+          />
+          <button onClick={()=>{}} style={{background:'none',border:'none',color:'rgba(255,255,255,0.4)',cursor:'pointer',fontSize:18,padding:'4px 6px',lineHeight:1}}>&#9741;</button>
+          <button onClick={sendChat} disabled={!chatIn.trim()||chatLoad} style={{background:'none',border:'none',color:chatIn.trim()?'#B8A060':'rgba(255,255,255,0.2)',cursor:chatIn.trim()?'pointer':'default',fontSize:20,padding:'4px 6px',lineHeight:1,transform:'rotate(-30deg)'}}>&#10148;</button>
         </div>
       </div>
     </div>
-  </div>);
+  );
 }
 
 // ── Dashboard ─────────────────────────────────────────
@@ -1077,7 +711,7 @@ function Dashboard({user,skill,level,roadmap,completed,onContinue,onNewSkill}){
   return(<div style={{position:'relative',minHeight:'100vh'}}><Stars/><div className="dash-wrap">
     <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:32,flexWrap:'wrap',gap:12}} className="fade-up">
       <div><div className="badge badge-amber" style={{marginBottom:9}}>👋 Welcome back</div><h1 style={{fontFamily:'var(--font-h)',fontSize:26,fontWeight:800}}>{user.name}</h1><p style={{color:'var(--text-muted)',marginTop:4}}>Consistency is the key to mastery. Keep going!</p></div>
-      <div style={{display:'flex',gap:9}}><button className="btn btn-ghost btn-sm" onClick={onNewSkill}>+ New Skill</button>{roadmap.length>0&&<button className="btn btn-primary" onClick={()=>onContinue(nextIdx)}>Continue Learning →</button>}</div>
+      <div style={{display:'flex',gap:9}}><button className="btn btn-ghost btn-sm" onClick={onNewSkill}>New Skill</button>{roadmap.length>0&&<button className="btn btn-primary" onClick={()=>onContinue(nextIdx)}>Continue Learning</button>}</div>
     </div>
     {skill&&<div className="dash-grid fade-up" style={{animationDelay:'.1s'}}>
       <div className="st-card" style={{borderColor:'rgba(91,141,239,.3)'}}><div className="st-lbl">Current Skill</div><div style={{display:'flex',alignItems:'center',gap:9,marginTop:5}}><span style={{fontSize:26}}>{skill.emoji}</span><div style={{fontFamily:'var(--font-h)',fontWeight:700,fontSize:15}}>{skill.name}</div></div><div style={{marginTop:9}}><div className={`badge badge-${level==='beginner'?'teal':level==='intermediate'?'blue':'amber'}`} style={{textTransform:'capitalize'}}>{level}</div></div></div>
