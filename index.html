@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SmartAna</title>
+<title>MentorAi</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
@@ -239,15 +239,26 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-b);overflow-x
 .tts-pill:hover{border-color:var(--amber);color:var(--amber);}
 .tts-pill.on{background:var(--amber-dim);border-color:var(--amber);color:var(--amber);}
 
-@media(max-width:768px){
+  @media(max-width:768px){
   .nav{padding:12px 16px;}
   .hero{padding:50px 18px;}
   .feat-grid,.chips-section{padding-left:18px;padding-right:18px;}
   .page-wrap{padding:26px 16px;}
-  .tutor-body{padding:8px 8px 0;}
-  .screen-inner{grid-template-columns:1fr;}
+  .tutor-body{ padding:15px 15px 0; height: auto; overflow-x: hidden;}
+  .screen-frame { height: auto; aspect-ratio: auto; min-height: 500px;}
+  .screen-inner{
+    grid-template-columns:1fr; height: auto;
+  }
   .avatar-panel{display:none;}
+  .lesson-panel {
+    padding: 16px;
+    font-size: 15px;
+  }
+  .chat-bar {
+    max-height: 40vh; 
+  }
 }
+
 </style>
 </head>
 <body>
@@ -402,7 +413,7 @@ function stopSpeak(){ window.speechSynthesis?.cancel(); }
 
 // ── Generic helpers ──────────────────────────────────
 function Spin({s=18}){return <div style={{width:s,height:s,border:'2px solid rgba(91,141,239,.2)',borderTop:'2px solid var(--blue)',borderRadius:'50%',animation:'spin .7s linear infinite',flexShrink:0}}/>;}
-function Loading({msg}){return(<div className="loading-screen fade-in"><div className="load-orb">🤖</div><h3>{msg||'Preparing...'}</h3><p>Your AI tutor is getting ready</p><div className="dots" style={{marginTop:13}}><span/><span/><span/></div></div>);}
+function Loading({msg}){return(<div className="loading-screen fade-in"><div className="load-orb">M</div><h3>{msg||'Preparing...'}</h3><p>Your AI tutor is getting ready</p><div className="dots" style={{marginTop:13}}><span/><span/><span/></div></div>);}
 
 // ── Stars ─────────────────────────────────────────────
 function Stars(){
@@ -439,7 +450,7 @@ function Landing({onStart}){
     <div className="hero fade-up">
       <div className="hero-eyebrow">AI-Powered 1-on-1 Learning</div>
       <h1>Learn with a Realistic<br/><span className="grad">AI Tutor Built for You</span></h1>
-      <p>Stop buying courses you never finish. Mentana assesses your level, builds your roadmap, and teaches you step-by-step with a lifelike AI tutor — 24/7.</p>
+      <p>Stop buying courses you never finish. Mentor Ai assesses your level, builds your roadmap, and teaches you step-by-step with a lifelike AI tutor — 24/7.</p>
       <div className="hero-btns">
         <button className="btn btn-amber btn-lg" onClick={onStart}>Start Learning Free</button>
         <button className="btn btn-ghost btn-lg" onClick={onStart}>See How It Works</button>
